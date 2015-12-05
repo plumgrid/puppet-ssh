@@ -27,7 +27,7 @@ port 22 and 2222) should be passed as an array.
 
 This is working for both, client and server.
 
-### Both client and server
+### Both client, server and per user client configuration
 Host keys will be collected and distributed unless
  `storeconfigs_enabled` is `false`.
 
@@ -55,6 +55,15 @@ or
           'User' => 'ec2-user',
         },
       },
+      users_client_options => {
+        'bob' => {
+          options => {
+            'Host *.alice.fr' => {
+              'User' => 'alice',
+            },
+          },
+        },
+      },
     }
 ```
 
@@ -72,11 +81,25 @@ ssh::server_options:
     UsePAM: 'yes'
     X11Forwarding: 'yes'
 
+ssh::server_match_block:
+  filetransfer:
+    type: group
+    options:
+      ChrootDirectory: /home/sftp
+      ForceCommand: internal-sftp
+
 ssh::client_options:
     'Host *':
         SendEnv: 'LANG LC_*'
         ForwardX11Trusted: 'yes'
         ServerAliveInterval: '10'
+
+ssh::users_client_options:
+    'bob':
+        'options':
+            'Host *.alice.fr':
+                'User': 'alice'
+                'PasswordAuthentication': 'no'
 ```
 
 ### Client only
@@ -103,6 +126,63 @@ or
         },
       },
     }
+```
+
+### Per user client configuration
+
+**User's home is expected to be /home/bob**
+
+SSH configuration file will be `/home/bob/.ssh/config`.
+
+```puppet
+::ssh::client::config::user { 'bob':
+  ensure => present,
+  options => {
+    'HashKnownHosts' => 'yes'
+  }
+}
+```
+
+**User's home is passed to define type**
+
+SSH configuration file will be `/var/lib/bob/.ssh/config` and puppet will 
+manage directory `/var/lib/bob/.ssh`.
+
+```puppet
+::ssh::client::config::user { 'bob':
+  ensure => present,
+  user_home_dir => '/var/lib/bob',
+  options => {
+    'HashKnownHosts' => 'yes'
+  }
+}
+```
+
+**User's ssh directory should not be managed by the define type**
+
+SSH configuration file will be `/var/lib/bob/.ssh/config`.
+
+```puppet
+::ssh::client::config::user { 'bob':
+  ensure => present,
+  user_home_dir => '/var/lib/bob',
+  manage_user_ssh_dir => false,
+  options => {
+    'HashKnownHosts' => 'yes'
+  }
+}
+```
+
+**User's ssh config is specified with an absolute path**
+
+```puppet
+::ssh::client::config::user { 'bob':
+  ensure => present,
+  target => '/var/lib/bob/.ssh/ssh_config',
+  options => {
+    'HashKnownHosts' => 'yes'
+  }
+}
 ```
 
 ### Server only
